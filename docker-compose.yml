@@ -1,0 +1,71 @@
+services:
+  user_service:
+    build: ./user_service
+    ports:
+      - "8000:8000"  # expose the port
+    env_file:
+      - ./user_service/.env
+    environment:
+      - DATABASE_URL="postgresql+asyncpg://postgres:mynewpassword@user_db:5432/user_service_db" #must match the env file
+      - DB_HOST=user_db
+      - DB_USER=postgres
+      - DB_PASSWORD=mynewpassword
+      - DB_NAME=user_service_db #must match POSTGRES_DB in docker-compose.yml
+    depends_on:
+      user_db:
+        condition: service_healthy
+
+  user_db:
+    image: postgres
+    environment:
+      POSTGRES_DB: user_service_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mynewpassword
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"] #debugging
+      interval: 5s
+      timeout: 5s
+      retries: 5  
+    
+
+  post_service:
+    build: ./post_service
+    ports:
+      - "8001:8001"  # expose the port
+    env_file:
+      - ./post_service/.env
+    environment:
+      - DATABASE_URL="postgresql+asyncpg://postgres:mynewpassword@post_db:5432/post_service_db"
+      - DB_HOST=post_db
+      - DB_USER=postgres
+      - DB_PASSWORD=mynewpassword
+      - DB_NAME=post_service_db #must match POSTGRES_DB in docker-compose.yml
+    depends_on:
+      post_db:
+        condition: service_healthy #this directive ensures that post_service waits for post_db to start
+
+  post_db:
+    image: postgres
+    environment:
+      POSTGRES_DB: post_service_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mynewpassword
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"] #debugging
+      interval: 5s
+      timeout: 5s
+      retries: 5  
+
+  nginx:
+      image: nginx:latest
+      volumes:
+        - ./nginx.conf:/etc/nginx/nginx.conf
+      ports:
+        - "8080:80"
+      depends_on:
+        - post_service
+        - user_service
